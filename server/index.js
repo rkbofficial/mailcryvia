@@ -1,0 +1,195 @@
+require('dotenv').config();
+const crypto = require('crypto');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const fs = require('fs');
+const path = require('path');
+const { createDatabase } = require('./db/connection');
+const { startScheduler } = require('./jobs/scheduler');
+const { validateRequiredSecrets, redactSensitive } = require('./utils/secrets');
+const { getDefaultAppBaseUrl } = require('./utils/appBaseUrl');
+
+const app = express();
+const PORT = process.env.PORT || 4000;
+const CLIENT_DIST_PATH = path.resolve(__dirname, '../client/dist');
+const isProduction = process.env.NODE_ENV === 'production';
+const localDevOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
+function parseOrigins(value) {
+  return (value || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+}
+
+function getAllowedOrigins() {
+  const configured = parseOrigins(process.env.CORS_ORIGIN);
+  const appBaseUrl = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || '';
+  if (appBaseUrl) configured.push(appBaseUrl.replace(/\/+$/, ''));
+  return [...new Set(isProduction ? configured : [...localDevOrigins, ...configured])];
+}
+
+function validateDeploymentConfig() {
+  validateRequiredSecrets();
+
+  if (process.env.CORS_ORIGIN?.split(',').some((origin) => origin.trim() === '*')) {
+    throw new Error('CORS_ORIGIN must not contain *');
+  }
+
+  if (isProduction) {
+    if (!process.env.DATABASE_PATH && !process.env.DATA_DIR) {
+      throw new Error('DATABASE_PATH or DATA_DIR must be set in production');
+    }
+    if (!process.env.APP_BASE_URL && !process.env.RENDER_EXTERNAL_URL && !process.env.CORS_ORIGIN) {
+      throw new Error('APP_BASE_URL, RENDER_EXTERNAL_URL, or CORS_ORIGIN must be set in production');
+    }
+    const setupToken = (process.env.INITIAL_ADMIN_SETUP_TOKEN || '').trim();
+    if (!setupToken || setupToken.length < 32) {
+      throw new Error('INITIAL_ADMIN_SETUP_TOKEN must be set to a random value of at least 32 characters in production');
+    }
+  }
+}
+
+const allowedOrigins = getAllowedOrigins();
+
+app.set('trust proxy', 1);
+
+app.use((req, res, next) => {
+  req.id = crypto.randomUUID();
+  res.setHeader('X-Request-ID', req.id);
+
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    if (res.statusCode >= 400) {
+      const safeBody = body && typeof body === 'object' ? { ...body } : { error: 'Request failed' };
+      if (res.statusCode >= 500) safeBody.error = 'Internal server error';
+      safeBody.correlationId = req.id;
+      return originalJson(safeBody);
+    }
+    return originalJson(body);
+  };
+
+  next();
+});
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
+      connectSrc: ["'self'", ...allowedOrigins, 'http://localhost:4000', 'ws://localhost:5173'],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ['https://api.razorpay.com', 'https://checkout.razorpay.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  frameguard: { action: 'deny' },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: false },
+}));
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    return callback(null, allowedOrigins.includes(origin));
+  },
+  credentials: true,
+}));
+
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
+if (!isProduction) {
+  app.use((req, res, next) => {
+    res.setHeader('ngrok-skip-browser-warning', 'true');
+    next();
+  });
+}
+
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+async function startServer() {
+  validateDeploymentConfig();
+
+  const db = await createDatabase();
+  db.pragma('foreign_keys = ON');
+  app.locals.db = db;
+  app.locals.clientDistPath = CLIENT_DIST_PATH;
+
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok' });
+  });
+
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/track', require('./routes/tracking'));
+  app.use('/unsubscribe', require('./routes/unsubscribe'));
+  app.use('/api/plans', require('./routes/plans'));
+
+  const authMiddleware = require('./middleware/auth');
+  app.use('/api/contacts', authMiddleware, require('./routes/contacts'));
+  app.use('/api/lists', authMiddleware, require('./routes/lists'));
+  app.use('/api/templates', authMiddleware, require('./routes/templates'));
+  app.use('/api/campaigns', authMiddleware, require('./routes/campaigns'));
+  app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
+  app.use('/api/automations', authMiddleware, require('./routes/automations'));
+  app.use('/api/settings', authMiddleware, require('./routes/settings'));
+  app.use('/api/users', authMiddleware, require('./routes/users'));
+  app.use('/api/inbox', authMiddleware, require('./routes/inbox'));
+  app.use('/api/subscriptions', authMiddleware, require('./routes/subscriptions'));
+  app.use('/api/email-integrations', authMiddleware, require('./routes/email-integrations'));
+  app.use('/api/admin', authMiddleware, require('./routes/admin'));
+  app.use('/api/events', authMiddleware, require('./routes/events'));
+
+  if (isProduction && fs.existsSync(CLIENT_DIST_PATH)) {
+    app.use(express.static(CLIENT_DIST_PATH));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/unsubscribe/')) return next();
+      return res.sendFile(path.join(CLIENT_DIST_PATH, 'index.html'));
+    });
+  } else if (isProduction) {
+    console.warn('Client build not found; frontend routes will not be served.', { correlationId: 'startup' });
+  }
+
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
+  app.use((err, req, res, next) => {
+    console.error('Unhandled error:', { correlationId: req.id, error: redactSensitive(err) });
+    res.status(500).json({ error: 'Internal server error' });
+  });
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.info(`MailcryVia server listening on port ${PORT}`);
+    startScheduler(db);
+  });
+
+  let isShuttingDown = false;
+  const shutdown = () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    server.close(() => {
+      db.close();
+      process.exit(0);
+    });
+
+    setTimeout(() => process.exit(1), 5000).unref();
+  };
+
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
+}
+
+startServer().catch(err => {
+  console.error('Failed to start server:', redactSensitive(err));
+  process.exit(1);
+});

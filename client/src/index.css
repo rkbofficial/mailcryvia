@@ -1,0 +1,362 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────
+   IBM PLEX TYPE SYSTEM
+   Heading / KPI:       IBM Plex Sans  600 (Semi-Bold)
+   Section Labels:      IBM Plex Sans  500 (Medium)
+   Body / Tables:       IBM Plex Sans  400 (Regular)
+   Numbers / Data:      IBM Plex Mono  400
+   No italic anywhere.
+───────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    --primary: 262 83% 66%;
+    --bg-main: #f3f0ff;
+    --bg-card: rgba(248, 245, 255, 0.97);
+    --text-main: #0f172a;
+    --text-muted: #4b5563;
+    --border: rgba(109, 40, 217, 0.12);
+    --input: #ffffff;
+
+    --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+
+  .dark {
+    --bg-main: #0f0b26;
+    --bg-card: linear-gradient(145deg, rgba(32, 20, 64, 0.96) 0%, rgba(24, 15, 52, 0.92) 100%);
+    --text-main: #eae6ff;
+    --text-muted: #9d95c0;
+    --border: rgba(139, 92, 246, 0.22);
+    --input: rgba(22, 13, 48, 0.96);
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-style: normal;
+    line-height: 1.65;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    @apply transition-colors duration-500 antialiased selection:bg-primary-500 selection:text-white;
+  }
+
+  /* Kill italic everywhere — use upright text only */
+  *, *::before, *::after {
+    font-style: normal !important;
+  }
+
+  /* ── Heading scale — IBM Plex Sans Semi-Bold 600 ── */
+  h1 { font-size: 2rem;   font-weight: 600; line-height: 1.15; letter-spacing: -0.02em; }
+  h2 { font-size: 1.35rem; font-weight: 600; line-height: 1.2;  letter-spacing: -0.015em; }
+  h3 { font-size: 1.1rem;  font-weight: 600; line-height: 1.3;  letter-spacing: -0.01em; }
+  h4 { font-size: 0.95rem; font-weight: 600; line-height: 1.4;  letter-spacing: 0; }
+
+  /* ── Button / inputs inherit font ── */
+  button, input, textarea, select {
+    font-family: var(--font-sans);
+    font-style: normal !important;
+  }
+
+  /* ── Muted text — readable in both modes ── */
+  .text-gray-500 { color: #64748b; }
+  .text-gray-400 { color: #718096; }
+  .text-gray-600 { color: #4a5568; }
+  .dark .text-gray-500 { color: #94a3b8; }
+  .dark .text-gray-400 { color: #a0aec0; }
+  .dark .text-gray-600 { color: #8fa3b8; }
+
+  /* Background radial glow */
+  .dark body {
+    background-image:
+      radial-gradient(ellipse 90% 55% at 50% 0%, rgba(109, 40, 217, 0.55) 0%, transparent 60%),
+      radial-gradient(ellipse at 88% 90%, rgba(79, 30, 180, 0.42) 0%, transparent 45%),
+      radial-gradient(ellipse at 12% 58%, rgba(60, 24, 150, 0.32) 0%, transparent 40%),
+      radial-gradient(ellipse 60% 40% at 50% 50%, rgba(255,255,255,0.015) 0%, transparent 70%),
+      linear-gradient(180deg, #1a1040 0%, #0f0b26 50%, #0c0922 100%);
+  }
+}
+
+@layer components {
+
+  /* Tech grid background pattern */
+  .tech-grid {
+    background-size: 40px 40px;
+    background-image:
+      linear-gradient(to right,  rgba(139,92,246,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(139,92,246,0.05) 1px, transparent 1px);
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 text-white px-5 py-3 rounded-xl
+           transition-all duration-300 shadow-lg shadow-primary-500/20
+           active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed
+           inline-flex items-center justify-center gap-2;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .btn-secondary {
+    @apply bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10
+           text-gray-800 dark:text-gray-100 px-5 py-3 rounded-xl
+           transition-all duration-300 border border-black/10 dark:border-white/10
+           hover:border-primary-500/50 shadow-sm active:scale-[0.97]
+           inline-flex items-center gap-2;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-xl
+           transition-all duration-300 shadow-lg shadow-red-500/20
+           active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed
+           inline-flex items-center gap-2;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Small pill buttons for table row actions */
+  .btn-sm {
+    @apply px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5
+           border transition-all duration-200 active:scale-[0.97]
+           bg-black/5 dark:bg-white/5 text-gray-600 dark:text-gray-400
+           border-black/10 dark:border-white/10
+           hover:bg-black/10 dark:hover:bg-white/10;
+    font-family: var(--font-sans);
+    font-weight: 900;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .btn-sm-primary {
+    @apply px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5
+           border transition-all duration-200 active:scale-[0.97]
+           bg-primary-500/10 text-primary-600 dark:text-primary-400
+           border-primary-500/20
+           hover:bg-primary-500 hover:text-white hover:border-primary-500;
+    font-family: var(--font-sans);
+    font-weight: 900;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .btn-sm-danger {
+    @apply px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5
+           border transition-all duration-200 active:scale-[0.97]
+           bg-red-500/10 text-red-600 dark:text-red-400
+           border-red-500/20
+           hover:bg-red-500 hover:text-white hover:border-red-500;
+    font-family: var(--font-sans);
+    font-weight: 900;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── Cards ── */
+  .card {
+    @apply rounded-2xl border overflow-hidden transition-all duration-300
+           shadow-[0_8px_32px_rgba(109,40,217,0.07)]
+           dark:shadow-[0_8px_32px_rgba(3,0,12,0.55)];
+    border-color: var(--border);
+    background: var(--bg-card);
+  }
+  .card:hover {
+    @apply shadow-[0_12px_40px_rgba(139,92,246,0.15)];
+    border-color: rgba(139, 92, 246, 0.28);
+  }
+
+  /* ── Input fields ── */
+  .input-field {
+    @apply w-full px-4 py-3 border border-black/15 dark:border-white/10 rounded-xl
+           focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500
+           transition-all duration-200 outline-none shadow-sm;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-size: 0.9375rem;
+    background-color: var(--input);
+    color: var(--text-main);
+  }
+  .input-field::placeholder { color: #9ca3af; }
+
+  /* Hide browser-native password reveal — we use our own toggle */
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear { display: none; }
+  input::-webkit-credentials-auto-fill-button { visibility: hidden; pointer-events: none; }
+
+  /* ── Badges ── */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-md border;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-blue   { @apply bg-blue-500/10    text-blue-600    dark:text-blue-400    border-blue-500/25; }
+  .badge-green  { @apply bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25; }
+  .badge-yellow { @apply bg-amber-500/10   text-amber-700   dark:text-amber-400   border-amber-500/25; }
+  .badge-red    { @apply bg-red-500/10     text-red-600     dark:text-red-400     border-red-500/25; }
+  .badge-gray   { @apply bg-gray-100       text-gray-600    dark:text-gray-300    dark:bg-white/10  border-gray-200 dark:border-white/10; }
+  .badge-purple { @apply bg-primary-500/10 text-primary-600 dark:text-primary-400 border-primary-500/25; }
+
+  /* ── Nav active state ── */
+  .nav-link-active {
+    @apply bg-primary-500 text-white shadow-md shadow-primary-500/25;
+  }
+
+  /* ── Glass topbar ── */
+  .glass {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    background: var(--bg-card);
+    @apply border-b border-black/10 dark:border-white/10;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   TYPOGRAPHY UTILITY OVERRIDES
+   Map the tiny pixel classes used in JSX to
+   a readable, proportional IBM Plex scale.
+───────────────────────────────────────────────── */
+
+/* Micro label sizes → readable scale */
+.text-\[8px\]  { font-size: 0.75rem !important; line-height: 1.5 !important; }
+.text-\[9px\]  { font-size: 0.8rem  !important; line-height: 1.5 !important; }
+.text-\[10px\] { font-size: 0.85rem !important; line-height: 1.5 !important; }
+.text-\[11px\] { font-size: 0.9rem  !important; line-height: 1.5 !important; }
+.text-\[15px\] { font-size: 0.95rem !important; }
+/* Boost base xs/sm one step for readability */
+.text-xs { font-size: 0.82rem !important; line-height: 1.5 !important; }
+.text-sm { font-size: 0.9375rem !important; }
+
+/* font-weight remapping: font-black → 600 (semi-bold) for IBM Plex */
+.font-black  { font-weight: 600 !important; }
+.font-bold   { font-weight: 600 !important; }
+.font-semibold { font-weight: 500 !important; }
+.font-medium { font-weight: 500 !important; }
+
+/* Letter spacing — sensible values for IBM Plex */
+.tracking-\[0\.3em\] { letter-spacing: 0.16em !important; }
+.tracking-\[0\.2em\] { letter-spacing: 0.12em !important; }
+.tracking-widest     { letter-spacing: 0.10em !important; }
+.tracking-wide       { letter-spacing: 0.05em !important; }
+.tracking-tight      { letter-spacing: -0.01em !important; }
+.tracking-tighter    { letter-spacing: -0.02em !important; }
+.tracking-tightest   { letter-spacing: -0.025em !important; }
+.tracking-normal     { letter-spacing: 0 !important; }
+
+/* Monospace numbers / data cells */
+.text-mono {
+  font-family: var(--font-mono) !important;
+  font-weight: 400;
+}
+
+@layer utilities {
+  /* Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-primary-500/20 rounded-full; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { @apply bg-primary-500/40; }
+
+  .bg-main { background-color: var(--bg-main); }
+
+  /* Animations */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.95) translateY(4px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0); }
+  }
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 6px 2px rgba(139,92,246,0.3); }
+    50%       { box-shadow: 0 0 14px 4px rgba(139,92,246,0.6); }
+  }
+  .animate-fade-in  { animation: fade-in  0.4s ease both; }
+  .animate-slide-up { animation: slide-up 0.45s ease both; }
+  .animate-scale-in { animation: scale-in 0.22s ease-out both; }
+  .animate-glow     { animation: glow-pulse 2s ease-in-out infinite; }
+}
+
+/* ── Dark mode tech-grid opacity ── */
+.dark  .tech-grid { opacity: 0.15; }
+.light .tech-grid { opacity: 0.04; }
+
+/* ── Light-mode opacity helpers (bg-white/* classes) ── */
+:root .bg-white\/5   { background-color: rgba(109,40,217,0.04); }
+:root .bg-white\/10  { background-color: rgba(109,40,217,0.08); }
+:root .border-white\/5  { border-color: rgba(109,40,217,0.07); }
+:root .border-white\/10 { border-color: rgba(109,40,217,0.12); }
+:root .bg-black\/20  { background-color: rgba(109,40,217,0.06); }
+:root .bg-black\/40  { background-color: rgba(109,40,217,0.10); }
+
+/* Dark mode — restore semantic values */
+.dark .bg-white\/5   { background-color: rgba(255,255,255,0.05); }
+.dark .bg-white\/10  { background-color: rgba(255,255,255,0.10); }
+.dark .border-white\/5  { border-color: rgba(255,255,255,0.05); }
+.dark .border-white\/10 { border-color: rgba(255,255,255,0.10); }
+.dark .bg-black\/20  { background-color: rgba(0,0,0,0.20); }
+.dark .bg-black\/40  { background-color: rgba(0,0,0,0.40); }
+
+/* ── Select: remove native arrow, add custom chevron ── */
+select.input-field {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+}
+select.input-field option {
+  background-color: #ffffff;
+  color: #0f172a;
+  font-weight: 500;
+}
+.dark select.input-field option {
+  background-color: #1a0f3e;
+  color: #eae6ff;
+}
+
+/* ── Touch devices: always show hover-only elements ── */
+@media (hover: none) {
+  .opacity-0.group-hover\:opacity-100 { opacity: 1 !important; }
+}
+
+/* ── Tables: tighter on mobile ── */
+@media (max-width: 768px) {
+  table { font-size: 0.8rem; }
+  th, td { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+}
+
+/* ── Hero text clamp on small phones ── */
+@media (max-width: 480px) {
+  h1 { font-size: clamp(1.5rem, 7vw, 2.5rem) !important; }
+}

@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(curl -s http://localhost:4000/api/admin/stats -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwiZW1haWwiOiJhZG1pbkBtYWlsY3J5dmlhLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4MDczNzk0NSwiZXhwIjoxNzgwNzQxNTQ1fQ.xiMIaUkc78GKj0JyDN53cbT1tzLrBiLVkn6T-o5KKEo')",
+      "Bash(python3 -m json.tool)",
+      "Bash(node admin_ss.mjs)",
+      "Bash(curl -s --max-time 2 http://localhost:4000/api/plans)",
+      "Bash(curl -s --max-time 2 http://localhost:5173)",
+      "Bash(start http://localhost:5173)",
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e \"const jwt=require\\('jsonwebtoken'\\);console.log\\(jwt.sign\\({id:2,email:'admin@mailcryvia.com',role:'admin'},'change-me-to-a-random-string-at-least-32-chars',{expiresIn:'2h'}\\)\\)\")",
+      "Bash(node verify2.mjs)",
+      "Bash(node screenshots.mjs)",
+      "Bash(node ss_manual_payment.mjs)",
+      "Bash(node ss_fullpage.mjs)",
+      "Bash(node ss_manual_section.mjs)",
+      "Bash(node ss_user_upgrade.mjs)",
+      "Bash(curl -s -X POST http://localhost:4000/api/auth/signup -H \"Content-Type: application/json\" -d \"{\\\\\"name\\\\\":\\\\\"Test User\\\\\",\\\\\"email\\\\\":\\\\\"testuser_ss@test.com\\\\\",\\\\\"password\\\\\":\\\\\"testpass123\\\\\"}\")",
+      "Bash(curl -s http://localhost:4000/api/auth/check)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 6052 /F)",
+      "PowerShell(Stop-Process -Id 6052 -Force -ErrorAction SilentlyContinue)",
+      "Bash(curl -s http://localhost:4000/api/plans)",
+      "PowerShell($proc = Get-NetTCPConnection -LocalPort 4000 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess; if \\($proc\\) { Stop-Process -Id $proc -Force -ErrorAction SilentlyContinue; Write-Host \"Killed $proc\" } else { Write-Host \"No process on 4000\" })",
+      "Bash(python3 -c \"import sys,json; plans=json.load\\(sys.stdin\\); [print\\(p['slug'], p.get\\('max_email_integrations','MISSING'\\)\\) for p in plans]\")",
+      "Bash(node ss_email_senders.mjs)",
+      "Bash(node -e \"require\\('nodemailer'\\); console.log\\('ok'\\)\")"
+    ]
+  }
+}

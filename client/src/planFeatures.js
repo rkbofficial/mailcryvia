@@ -1,0 +1,37 @@
+export const PLAN_FEATURES = {
+  free: [
+    '200 recipients/day',
+    '500 contacts',
+    '5 campaigns/month',
+    '1 email sender (SMTP)',
+    'Campaign templates',
+    'Basic analytics',
+  ],
+  professional: [
+    '5,000 recipients/day',
+    '10,000 contacts',
+    '50 campaigns/month',
+    '5 email senders (SMTP)',
+    'Advanced analytics',
+    'Campaign templates',
+    'Email automations',
+  ],
+  business: [
+    '25,000 recipients/day',
+    '100,000 contacts',
+    '200 campaigns/month',
+    '20 email senders (SMTP)',
+    'Full analytics suite',
+    'Campaign templates',
+    'Email automations',
+  ],
+  enterprise: [
+    'Unlimited recipients/day',
+    'Unlimited contacts',
+    'Unlimited campaigns',
+    'Unlimited email senders (SMTP)',
+    'Full analytics suite',
+    'Email automations',
+    '24/7 support',
+  ],
+};

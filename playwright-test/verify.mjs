@@ -1,0 +1,1 @@
+throw new Error('Legacy screenshot script disabled for deployment safety. Rebuild it on top of testConfig.mjs using environment-provided credentials and httpOnly auth cookies.');

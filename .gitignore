@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+playwright-test/.env
+playwright-test/.env.*
+!playwright-test/.env.example
+server/data/
+server/db/*.sqlite
+server/db/*.sqlite-*
+*.log
+node_modules/
+dist/
+build/

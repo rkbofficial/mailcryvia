@@ -1,0 +1,1 @@
+throw new Error('Disabled: password reset scripts with hardcoded credentials are not allowed. Use the authenticated admin UI or a one-time operational script that reads credentials from environment variables.');
