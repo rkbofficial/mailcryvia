@@ -21,7 +21,7 @@ export function useRealtime() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const base = import.meta.env.DEV ? 'http://localhost:4000' : '';
+    const base = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '');
     const es = new EventSource(`${base}/api/events/stream`, { withCredentials: true });
 
     Object.entries(EVENT_MAP).forEach(([event, keys]) => {
