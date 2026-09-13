@@ -1,8 +1,11 @@
 const path = require('path');
 const fs = require('fs');
 const initSqlJs = require('sql.js');
+const { Pool } = require('pg');
 const { applySchema } = require('./schema');
 const { redactSensitive } = require('../utils/secrets');
+
+const isServerlessRuntime = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
 function resolveDatabasePath() {
   const databasePath = process.env.DATABASE_PATH && process.env.DATABASE_PATH.trim();
@@ -133,18 +136,161 @@ class SqlJsWrapper {
   }
 }
 
-async function createDatabase() {
-  const SQL = await initSqlJs();
-  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  let sqlDb;
-  if (fs.existsSync(DB_PATH)) {
-    const buffer = fs.readFileSync(DB_PATH);
-    sqlDb = new SQL.Database(buffer);
-  } else {
-    sqlDb = new SQL.Database();
+class PostgresCompatWrapper {
+  constructor(pool) {
+    this.pool = pool;
+    this._transactionDepth = 0;
   }
+
+  _normaliseRow(row) {
+    if (!row) return row;
+    const normalised = {};
+    for (const [key, value] of Object.entries(row)) {
+      normalised[key] = value;
+    }
+    return normalised;
+  }
+
+  _normaliseRows(rows) {
+    if (!Array.isArray(rows)) return rows;
+    return rows.map((row) => this._normaliseRow(row));
+  }
+
+  _withClient(fn) {
+    return this.pool.connect().then((client) => {
+      const cleanup = () => client.release();
+      return Promise.resolve(fn(client)).finally(cleanup);
+    });
+  }
+
+  _query(sql, params = []) {
+    const values = Array.isArray(params) ? params : [params];
+    return this.pool.query(sql, values).then((result) => this._normaliseRows(result.rows));
+  }
+
+  _execute(sql, params = []) {
+    const values = Array.isArray(params) ? params : [params];
+    return this.pool.query(sql, values).then((result) => {
+      const lastInsertRowid = result.rows && result.rows[0] && 'id' in result.rows[0] ? result.rows[0].id : null;
+      const changes = typeof result.rowCount === 'number' ? result.rowCount : 0;
+      return { lastInsertRowid, changes };
+    });
+  }
+
+  prepare(sql) {
+    const wrapper = this;
+    return {
+      get(...params) {
+        return wrapper._query(sql, params).then((rows) => rows[0]);
+      },
+      all(...params) {
+        return wrapper._query(sql, params);
+      },
+      run(...params) {
+        const insertQuery = /\bINSERT\b/i.test(sql.trim());
+        const hasReturning = /\bRETURNING\b/i.test(sql.trim());
+        const query = insertQuery && !hasReturning ? `${sql.trim()} RETURNING id AS "lastInsertRowid"` : sql;
+        return wrapper._execute(query, params).then((result) => {
+          if (result.lastInsertRowid == null && /\bUPDATE\b|\bDELETE\b/i.test(sql.trim())) {
+            return { lastInsertRowid: null, changes: result.changes };
+          }
+          return result;
+        });
+      }
+    };
+  }
+
+  transaction(fn) {
+    const wrapper = this;
+    return (...args) => {
+      return wrapper._withClient(async (client) => {
+        await client.query('BEGIN');
+        try {
+          const result = await fn(...args);
+          await client.query('COMMIT');
+          return result;
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        }
+      });
+    };
+  }
+
+  pragma() {
+    return undefined;
+  }
+
+  exec(sql) {
+    return this.pool.query(sql).then((result) => ({ rowCount: result.rowCount || 0 }));
+  }
+
+  close() {
+    return this.pool.end();
+  }
+}
+
+async function createDatabase() {
+  const databaseUrl = process.env.DATABASE_URL && process.env.DATABASE_URL.trim();
+  if (databaseUrl) {
+    const pool = new Pool({
+      connectionString: databaseUrl,
+      ssl: process.env.PGSSLMODE === 'require' || process.env.NODE_ENV === 'production'
+        ? { rejectUnauthorized: false }
+        : false,
+    });
+
+    try {
+      await pool.query('SELECT 1');
+      console.info('[Database] PostgreSQL adapter ready for Vercel/serverless migration path.');
+      return new PostgresCompatWrapper(pool);
+    } catch (err) {
+      console.warn('[Database] PostgreSQL connection failed, falling back to SQLite:', redactSensitive(err));
+      await pool.end().catch(() => {});
+    }
+  }
+
+  const SQL = await initSqlJs();
+  const useInMemoryDb = isServerlessRuntime || !process.env.DATABASE_PATH;
+
+  if (process.env.DATABASE_URL && !isServerlessRuntime) {
+    console.info('[Database] DATABASE_URL detected; local runtime will continue in SQLite compatibility mode until the full Postgres migration is complete.');
+  }
+
+  let sqlDb;
+  if (useInMemoryDb) {
+    sqlDb = new SQL.Database();
+  } else {
+    try {
+      fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    } catch (err) {
+      console.warn('Database directory is not writable, falling back to in-memory SQLite for serverless runtime:', redactSensitive(err));
+      sqlDb = new SQL.Database();
+    }
+
+    if (sqlDb == null && fs.existsSync(DB_PATH)) {
+      const buffer = fs.readFileSync(DB_PATH);
+      sqlDb = new SQL.Database(buffer);
+    } else if (sqlDb == null) {
+      sqlDb = new SQL.Database();
+    }
+  }
+
   applySchema(sqlDb);
-  fs.writeFileSync(DB_PATH, Buffer.from(sqlDb.export()));
+
+  if (!useInMemoryDb) {
+    try {
+      fs.writeFileSync(DB_PATH, Buffer.from(sqlDb.export()));
+    } catch (err) {
+      console.warn('Database write failed, falling back to in-memory SQLite for serverless runtime:', redactSensitive(err));
+      return new SqlJsWrapper(new SQL.Database(sqlDb.export()));
+    }
+  }
+
+  if (isServerlessRuntime) {
+    console.info('[Database] SQLite fallback active in serverless runtime; local disk writes are disabled by design.');
+  }
+
   return new SqlJsWrapper(sqlDb);
 }
 

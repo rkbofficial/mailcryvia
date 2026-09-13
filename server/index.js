@@ -1,13 +1,14 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const serverless = require('serverless-http');
 const fs = require('fs');
 const path = require('path');
 const { createDatabase } = require('./db/connection');
-const { startScheduler } = require('./jobs/scheduler');
+const { startScheduler, runScheduledJobs } = require('./jobs/scheduler');
 const { validateRequiredSecrets, redactSensitive } = require('./utils/secrets');
 const { getDefaultAppBaseUrl } = require('./utils/appBaseUrl');
 
@@ -15,6 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const CLIENT_DIST_PATH = path.resolve(__dirname, '../client/dist');
 const isProduction = process.env.NODE_ENV === 'production';
+const isServerlessRuntime = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 const localDevOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
 function parseOrigins(value) {
@@ -24,7 +26,11 @@ function parseOrigins(value) {
 function getAllowedOrigins() {
   const configured = parseOrigins(process.env.CORS_ORIGIN);
   const appBaseUrl = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || '';
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '';
+
   if (appBaseUrl) configured.push(appBaseUrl.replace(/\/+$/, ''));
+  if (vercelUrl) configured.push(vercelUrl.replace(/\/+$/, ''));
+
   return [...new Set(isProduction ? configured : [...localDevOrigins, ...configured])];
 }
 
@@ -36,11 +42,13 @@ function validateDeploymentConfig() {
   }
 
   if (isProduction) {
-    if (!process.env.DATABASE_PATH && !process.env.DATA_DIR) {
+    if (!isServerlessRuntime && !process.env.DATABASE_PATH && !process.env.DATA_DIR) {
       throw new Error('DATABASE_PATH or DATA_DIR must be set in production');
     }
-    if (!process.env.APP_BASE_URL && !process.env.RENDER_EXTERNAL_URL && !process.env.CORS_ORIGIN) {
-      throw new Error('APP_BASE_URL, RENDER_EXTERNAL_URL, or CORS_ORIGIN must be set in production');
+
+    const appBaseUrl = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+    if (!isServerlessRuntime && !appBaseUrl && !process.env.CORS_ORIGIN) {
+      throw new Error('APP_BASE_URL, RENDER_EXTERNAL_URL, VERCEL_URL, or CORS_ORIGIN must be set in production');
     }
     const setupToken = (process.env.INITIAL_ADMIN_SETUP_TOKEN || '').trim();
     if (!setupToken || setupToken.length < 32) {
@@ -116,16 +124,54 @@ if (!isProduction) {
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-async function startServer() {
-  validateDeploymentConfig();
+async function ensureAppDatabase() {
+  if (app.locals.db) return app.locals.db;
 
   const db = await createDatabase();
   db.pragma('foreign_keys = ON');
   app.locals.db = db;
   app.locals.clientDistPath = CLIENT_DIST_PATH;
+  return db;
+}
+
+async function initializeApp() {
+  if (app.locals.routesReady) return app;
+
+  validateDeploymentConfig();
+  const db = await ensureAppDatabase();
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.post('/api/cron/run', async (req, res) => {
+    const expectedSecret = process.env.CRON_SECRET || process.env.INITIAL_ADMIN_SETUP_TOKEN;
+    const providedSecret = String(req.headers['x-cron-secret'] || req.query.secret || '').trim();
+
+    if (expectedSecret && providedSecret !== expectedSecret) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!expectedSecret) {
+      console.warn('[Cron] CRON_SECRET not configured; cron endpoints are currently open. Set CRON_SECRET in production.');
+    }
+
+    try {
+      await runScheduledJobs(app.locals.db);
+      res.json({ success: true, message: 'Scheduled jobs processed' });
+    } catch (err) {
+      console.error('[Cron] Scheduled run failed:', redactSensitive(err));
+      res.status(500).json({ error: 'Scheduled job failed' });
+    }
+  });
+
+  app.use(async (req, res, next) => {
+    try {
+      await ensureAppDatabase();
+      next();
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.use('/api/auth', require('./routes/auth'));
@@ -167,9 +213,24 @@ async function startServer() {
     res.status(500).json({ error: 'Internal server error' });
   });
 
+  app.locals.routesReady = true;
+  app.locals.db = db;
+
+  if (!isServerlessRuntime && typeof startScheduler === 'function' && !app.locals.schedulerStarted) {
+    try {
+      startScheduler(db);
+      app.locals.schedulerStarted = true;
+    } catch (_) {}
+  }
+
+  return app;
+}
+
+async function startServer() {
+  await initializeApp();
+
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.info(`MailcryVia server listening on port ${PORT}`);
-    startScheduler(db);
   });
 
   let isShuttingDown = false;
@@ -178,7 +239,9 @@ async function startServer() {
     isShuttingDown = true;
 
     server.close(() => {
-      db.close();
+      if (app.locals.db && typeof app.locals.db.close === 'function') {
+        app.locals.db.close();
+      }
       process.exit(0);
     });
 
@@ -189,7 +252,22 @@ async function startServer() {
   process.once('SIGTERM', shutdown);
 }
 
-startServer().catch(err => {
-  console.error('Failed to start server:', redactSensitive(err));
-  process.exit(1);
-});
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  initializeApp().catch((err) => {
+    console.error('Vercel app init failed:', redactSensitive(err));
+  });
+} else if (require.main === module) {
+  startServer().catch(err => {
+    console.error('Failed to start server:', redactSensitive(err));
+    process.exit(1);
+  });
+}
+
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  module.exports = serverless(app);
+} else {
+  module.exports = app;
+}
+
+module.exports.initializeApp = initializeApp;
+module.exports.ensureAppDatabase = ensureAppDatabase;

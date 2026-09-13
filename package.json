@@ -3,5 +3,8 @@
   "private": true,
   "scripts": {
     "build": "npm --prefix client run build"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
   }
 }
