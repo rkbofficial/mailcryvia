@@ -1,4 +1,8 @@
-require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
+try {
+  require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
+} catch (err) {
+  // dotenv is optional in Vercel/serverless builds when env vars are injected by the platform.
+}
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');

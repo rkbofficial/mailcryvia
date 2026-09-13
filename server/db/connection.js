@@ -1,9 +1,20 @@
 const path = require('path');
 const fs = require('fs');
-const initSqlJs = require('sql.js');
 const { Pool } = require('pg');
 const { applySchema } = require('./schema');
 const { redactSensitive } = require('../utils/secrets');
+
+function loadSqlJs() {
+  try {
+    return require('sql.js');
+  } catch (err) {
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      console.warn('[Database] sql.js is unavailable in the current serverless runtime; configure DATABASE_URL for production persistence.');
+      return null;
+    }
+    throw err;
+  }
+}
 
 const isServerlessRuntime = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
@@ -553,7 +564,30 @@ async function createDatabase() {
     }
   }
 
-  const SQL = await initSqlJs();
+  if (isServerlessRuntime) {
+    console.warn('[Database] No DATABASE_URL configured for Vercel; running in degraded serverless mode until Postgres is added.');
+    return {
+      prepare() {
+        return {
+          get() { return undefined; },
+          all() { return []; },
+          run() { return { lastInsertRowid: 0, changes: 0 }; },
+        };
+      },
+      pragma() {},
+      exec() {},
+      transaction(fn) {
+        return (...args) => fn(...args);
+      },
+      flush() {},
+      close() {},
+    };
+  }
+
+  const SQL = loadSqlJs();
+  if (!SQL) {
+    throw new Error('sql.js is required for local SQLite fallback but is unavailable. Configure DATABASE_URL for serverless production');
+  }
   const useInMemoryDb = isServerlessRuntime || !process.env.DATABASE_PATH;
 
   if (process.env.DATABASE_URL && !isServerlessRuntime) {
