@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: mailcryvia-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: INITIAL_ADMIN_SETUP_TOKEN
+        generateValue: true
+      - key: DATABASE_PATH
+        value: /opt/data/database.sqlite
+      - key: APP_BASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
