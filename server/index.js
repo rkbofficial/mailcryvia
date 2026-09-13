@@ -112,6 +112,12 @@ app.use('/api', rateLimit({
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    const ipHeader = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    const primary = typeof ipHeader === 'string' ? ipHeader.split(',')[0].trim() : '';
+    return primary || req.ip || req.socket?.remoteAddress || 'serverless-client';
+  },
 }));
 
 if (!isProduction) {
@@ -264,7 +270,11 @@ if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
 }
 
 if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  module.exports = serverless(app);
+  const vercelHandler = serverless(app);
+  module.exports = async function serverlessEntry(event, context) {
+    await initializeApp();
+    return vercelHandler(event, context);
+  };
 } else {
   module.exports = app;
 }
