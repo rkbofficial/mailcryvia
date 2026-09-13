@@ -14,3 +14,4 @@ server/db/*.sqlite-*
 node_modules/
 dist/
 build/
+.vercel
