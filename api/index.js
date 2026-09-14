@@ -25,10 +25,11 @@ app.use('/api/track', require('../server/routes/tracking'));
 app.use('/unsubscribe', require('../server/routes/unsubscribe'));
 
 app.use(async (req, res, next) => {
-  if (process.env.VERCEL && !process.env.DATABASE_URL) {
+  const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL_UNPOOLED || process.env.POSTGRES_URL_NO_SSL || process.env.POSTGRES_URL_NON_POOLING;
+  if (process.env.VERCEL && !databaseUrl) {
     return res.status(503).json({
       error: 'Database not configured for this Vercel deployment.',
-      message: 'Add DATABASE_URL to enable the backend.'
+      message: 'Add a Postgres connection string to enable the backend.'
     });
   }
 

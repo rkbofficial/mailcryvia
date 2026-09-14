@@ -11,7 +11,7 @@ const rateLimit = require('express-rate-limit');
 const serverless = require('serverless-http');
 const fs = require('fs');
 const path = require('path');
-const { createDatabase } = require('./db/connection');
+const { createDatabase, resolveDatabaseUrl } = require('./db/connection');
 const { startScheduler, runScheduledJobs } = require('./jobs/scheduler');
 const { validateRequiredSecrets, redactSensitive } = require('./utils/secrets');
 const { getDefaultAppBaseUrl } = require('./utils/appBaseUrl');
@@ -41,7 +41,7 @@ function getAllowedOrigins() {
 }
 
 function validateDeploymentConfig() {
-  if (isServerlessRuntime && !process.env.DATABASE_URL) {
+  if (isServerlessRuntime && !resolveDatabaseUrl()) {
     return;
   }
 
@@ -143,8 +143,8 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 async function ensureAppDatabase() {
   if (app.locals.db !== undefined) return app.locals.db;
 
-  if (isServerlessRuntime && !process.env.DATABASE_URL) {
-    console.warn('[Database] Vercel serverless startup without DATABASE_URL; skipping DB bootstrap to avoid cold-start timeout.');
+  if (isServerlessRuntime && !resolveDatabaseUrl()) {
+    console.warn('[Database] Vercel serverless startup without a database URL; skipping DB bootstrap to avoid cold-start timeout.');
     app.locals.db = null;
     return null;
   }
@@ -161,7 +161,7 @@ async function initializeApp() {
 
   validateDeploymentConfig();
   const db = await ensureAppDatabase();
-  const skipDbRoutes = isServerlessRuntime && !process.env.DATABASE_URL;
+  const skipDbRoutes = isServerlessRuntime && !resolveDatabaseUrl();
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });

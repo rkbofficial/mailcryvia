@@ -18,6 +18,22 @@ function loadSqlJs() {
 
 const isServerlessRuntime = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
+function resolveDatabaseUrl() {
+  const candidates = [
+    process.env.DATABASE_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.DATABASE_URL_UNPOOLED,
+    process.env.POSTGRES_URL_NO_SSL,
+    process.env.POSTGRES_URL_NON_POOLING,
+    process.env.PGHOST && process.env.PGDATABASE && process.env.PGUSER && process.env.PGPASSWORD
+      ? `postgresql://${encodeURIComponent(process.env.PGUSER)}:${encodeURIComponent(process.env.PGPASSWORD)}@${process.env.PGHOST}/${process.env.PGDATABASE}`
+      : '',
+  ];
+
+  return (candidates.find((value) => typeof value === 'string' && value.trim()) || '').trim();
+}
+
 function resolveDatabasePath() {
   const databasePath = process.env.DATABASE_PATH && process.env.DATABASE_PATH.trim();
   if (databasePath) return path.resolve(databasePath);
@@ -544,7 +560,7 @@ class PostgresCompatWrapper {
 }
 
 async function createDatabase() {
-  const databaseUrl = process.env.DATABASE_URL && process.env.DATABASE_URL.trim();
+  const databaseUrl = resolveDatabaseUrl();
   if (databaseUrl) {
     const pool = new Pool({
       connectionString: databaseUrl,
@@ -637,4 +653,4 @@ async function createDatabase() {
   return new SqlJsWrapper(sqlDb);
 }
 
-module.exports = { createDatabase, DB_PATH, PostgresCompatWrapper };
+module.exports = { createDatabase, DB_PATH, PostgresCompatWrapper, resolveDatabaseUrl };
