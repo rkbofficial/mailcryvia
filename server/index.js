@@ -18,7 +18,9 @@ const { getDefaultAppBaseUrl } = require('./utils/appBaseUrl');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const CLIENT_DIST_PATH = path.resolve(__dirname, '../client/dist');
+const rootDistPath = path.resolve(__dirname, '../dist');
+const clientDistPath = path.resolve(__dirname, '../client/dist');
+const CLIENT_DIST_PATH = fs.existsSync(rootDistPath) ? rootDistPath : clientDistPath;
 const isProduction = process.env.NODE_ENV === 'production';
 const isServerlessRuntime = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 const localDevOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
