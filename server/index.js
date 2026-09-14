@@ -135,7 +135,13 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 async function ensureAppDatabase() {
-  if (app.locals.db) return app.locals.db;
+  if (app.locals.db !== undefined) return app.locals.db;
+
+  if (isServerlessRuntime && !process.env.DATABASE_URL) {
+    console.warn('[Database] Vercel serverless startup without DATABASE_URL; skipping DB bootstrap to avoid cold-start timeout.');
+    app.locals.db = null;
+    return null;
+  }
 
   const db = await createDatabase();
   db.pragma('foreign_keys = ON');
@@ -149,12 +155,17 @@ async function initializeApp() {
 
   validateDeploymentConfig();
   const db = await ensureAppDatabase();
+  const skipDbRoutes = isServerlessRuntime && !process.env.DATABASE_URL;
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
   });
 
   app.post('/api/cron/run', async (req, res) => {
+    if (skipDbRoutes) {
+      return res.status(503).json({ error: 'Database not configured for this deployment; add DATABASE_URL to enable cron jobs.' });
+    }
+
     const expectedSecret = process.env.CRON_SECRET || process.env.INITIAL_ADMIN_SETUP_TOKEN;
     const providedSecret = String(req.headers['x-cron-secret'] || req.query.secret || '').trim();
 
@@ -176,6 +187,10 @@ async function initializeApp() {
   });
 
   app.use(async (req, res, next) => {
+    if (skipDbRoutes) {
+      return next();
+    }
+
     try {
       await ensureAppDatabase();
       next();
@@ -184,25 +199,34 @@ async function initializeApp() {
     }
   });
 
-  app.use('/api/auth', require('./routes/auth'));
-  app.use('/api/track', require('./routes/tracking'));
-  app.use('/unsubscribe', require('./routes/unsubscribe'));
-  app.use('/api/plans', require('./routes/plans'));
+  if (!skipDbRoutes) {
+    app.use('/api/auth', require('./routes/auth'));
+    app.use('/api/track', require('./routes/tracking'));
+    app.use('/unsubscribe', require('./routes/unsubscribe'));
+    app.use('/api/plans', require('./routes/plans'));
 
-  const authMiddleware = require('./middleware/auth');
-  app.use('/api/contacts', authMiddleware, require('./routes/contacts'));
-  app.use('/api/lists', authMiddleware, require('./routes/lists'));
-  app.use('/api/templates', authMiddleware, require('./routes/templates'));
-  app.use('/api/campaigns', authMiddleware, require('./routes/campaigns'));
-  app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
-  app.use('/api/automations', authMiddleware, require('./routes/automations'));
-  app.use('/api/settings', authMiddleware, require('./routes/settings'));
-  app.use('/api/users', authMiddleware, require('./routes/users'));
-  app.use('/api/inbox', authMiddleware, require('./routes/inbox'));
-  app.use('/api/subscriptions', authMiddleware, require('./routes/subscriptions'));
-  app.use('/api/email-integrations', authMiddleware, require('./routes/email-integrations'));
-  app.use('/api/admin', authMiddleware, require('./routes/admin'));
-  app.use('/api/events', authMiddleware, require('./routes/events'));
+    const authMiddleware = require('./middleware/auth');
+    app.use('/api/contacts', authMiddleware, require('./routes/contacts'));
+    app.use('/api/lists', authMiddleware, require('./routes/lists'));
+    app.use('/api/templates', authMiddleware, require('./routes/templates'));
+    app.use('/api/campaigns', authMiddleware, require('./routes/campaigns'));
+    app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
+    app.use('/api/automations', authMiddleware, require('./routes/automations'));
+    app.use('/api/settings', authMiddleware, require('./routes/settings'));
+    app.use('/api/users', authMiddleware, require('./routes/users'));
+    app.use('/api/inbox', authMiddleware, require('./routes/inbox'));
+    app.use('/api/subscriptions', authMiddleware, require('./routes/subscriptions'));
+    app.use('/api/email-integrations', authMiddleware, require('./routes/email-integrations'));
+    app.use('/api/admin', authMiddleware, require('./routes/admin'));
+    app.use('/api/events', authMiddleware, require('./routes/events'));
+  } else {
+    app.use('/api', (req, res) => {
+      res.status(503).json({ error: 'Database not configured for this Vercel deployment. Add DATABASE_URL to enable the app.' });
+    });
+    app.use('/unsubscribe', (req, res) => {
+      res.status(503).send('Database not configured for this Vercel deployment. Add DATABASE_URL to enable the app.');
+    });
+  }
 
   if (isProduction && fs.existsSync(CLIENT_DIST_PATH)) {
     app.use(express.static(CLIENT_DIST_PATH));
