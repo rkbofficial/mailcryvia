@@ -1,1 +1,10 @@
-{"error":"Internal server error","correlationId":"453acfd8-9eae-4010-ac2c-45a25e8ace57"}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET /api/auth/check</pre>
+</body>
+</html>

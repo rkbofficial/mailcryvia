@@ -205,27 +205,27 @@ async function initializeApp() {
     }
   });
 
-  if (!skipDbRoutes) {
-    app.use('/api/auth', require('./routes/auth'));
-    app.use('/api/track', require('./routes/tracking'));
-    app.use('/unsubscribe', require('./routes/unsubscribe'));
-    app.use('/api/plans', require('./routes/plans'));
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/track', require('./routes/tracking'));
+  app.use('/unsubscribe', require('./routes/unsubscribe'));
+  app.use('/api/plans', require('./routes/plans'));
 
-    const authMiddleware = require('./middleware/auth');
-    app.use('/api/contacts', authMiddleware, require('./routes/contacts'));
-    app.use('/api/lists', authMiddleware, require('./routes/lists'));
-    app.use('/api/templates', authMiddleware, require('./routes/templates'));
-    app.use('/api/campaigns', authMiddleware, require('./routes/campaigns'));
-    app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
-    app.use('/api/automations', authMiddleware, require('./routes/automations'));
-    app.use('/api/settings', authMiddleware, require('./routes/settings'));
-    app.use('/api/users', authMiddleware, require('./routes/users'));
-    app.use('/api/inbox', authMiddleware, require('./routes/inbox'));
-    app.use('/api/subscriptions', authMiddleware, require('./routes/subscriptions'));
-    app.use('/api/email-integrations', authMiddleware, require('./routes/email-integrations'));
-    app.use('/api/admin', authMiddleware, require('./routes/admin'));
-    app.use('/api/events', authMiddleware, require('./routes/events'));
-  } else {
+  const authMiddleware = require('./middleware/auth');
+  app.use('/api/contacts', authMiddleware, require('./routes/contacts'));
+  app.use('/api/lists', authMiddleware, require('./routes/lists'));
+  app.use('/api/templates', authMiddleware, require('./routes/templates'));
+  app.use('/api/campaigns', authMiddleware, require('./routes/campaigns'));
+  app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
+  app.use('/api/automations', authMiddleware, require('./routes/automations'));
+  app.use('/api/settings', authMiddleware, require('./routes/settings'));
+  app.use('/api/users', authMiddleware, require('./routes/users'));
+  app.use('/api/inbox', authMiddleware, require('./routes/inbox'));
+  app.use('/api/subscriptions', authMiddleware, require('./routes/subscriptions'));
+  app.use('/api/email-integrations', authMiddleware, require('./routes/email-integrations'));
+  app.use('/api/admin', authMiddleware, require('./routes/admin'));
+  app.use('/api/events', authMiddleware, require('./routes/events'));
+
+  if (skipDbRoutes) {
     app.use('/api', (req, res) => {
       res.status(503).json({ error: 'Database not configured for this Vercel deployment. Add DATABASE_URL to enable the app.' });
     });

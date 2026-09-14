@@ -1,1 +1,10 @@
-{"error":"Authentication required","correlationId":"16c772b8-c41d-4705-95ed-5bf7c3de93a5"}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET /api/auth/session</pre>
+</body>
+</html>
