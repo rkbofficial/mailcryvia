@@ -567,9 +567,15 @@ async function createDatabase() {
   if (isServerlessRuntime) {
     console.warn('[Database] No DATABASE_URL configured for Vercel; running in degraded serverless mode until Postgres is added.');
     return {
-      prepare() {
+      prepare(sql) {
+        const normalized = String(sql || '').toLowerCase();
         return {
-          get() { return undefined; },
+          get() {
+            if (normalized.includes('count(') || normalized.includes('count *')) {
+              return { count: 0 };
+            }
+            return undefined;
+          },
           all() { return []; },
           run() { return { lastInsertRowid: 0, changes: 0 }; },
         };

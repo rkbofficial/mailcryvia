@@ -55,9 +55,12 @@ function hasValidInitialSetupToken(req) {
 router.post('/signup', signupLimiter, (req, res) => {
   try {
     const db = req.app.locals.db;
+    if (!db) {
+      return res.status(503).json({ error: 'Database not configured for this deployment. Add DATABASE_URL to enable signup.' });
+    }
     const { name, email, password } = req.body;
 
-    const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND deleted_at IS NULL").get();
+    const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND deleted_at IS NULL").get() || { count: 0 };
     if (adminCount.count === 0) {
       return res.status(403).json({ error: 'Initial admin setup is required before user signup' });
     }
@@ -97,9 +100,12 @@ router.post('/signup', signupLimiter, (req, res) => {
 router.post('/register', (req, res) => {
   try {
     const db = req.app.locals.db;
+    if (!db) {
+      return res.status(503).json({ error: 'Database not configured for this deployment. Add DATABASE_URL to enable admin registration.' });
+    }
     const { email, password } = req.body;
 
-    const existingUser = db.prepare('SELECT COUNT(*) as count FROM users').get();
+    const existingUser = db.prepare('SELECT COUNT(*) as count FROM users').get() || { count: 0 };
     if (existingUser.count > 0) {
       return res.status(403).json({ error: 'Registration is disabled. An admin account already exists.' });
     }
@@ -160,11 +166,15 @@ router.post('/logout', (req, res) => {
 
 router.get('/session', (req, res) => {
   try {
+    const db = req.app.locals.db;
+    if (!db) {
+      return res.status(503).json({ error: 'Database not configured for this deployment.' });
+    }
     const token = getTokenFromRequest(req);
     if (!token) return res.status(401).json({ error: 'Authentication required' });
 
-    const decoded = verifyAuthToken(token, req.app.locals.db);
-    const user = req.app.locals.db
+    const decoded = verifyAuthToken(token, db);
+    const user = db
       .prepare('SELECT id, email, name, role, plan_id, plan_expires_at FROM users WHERE id = ? AND deleted_at IS NULL')
       .get(decoded.id);
     if (!user) return res.status(401).json({ error: 'Invalid or expired session' });
@@ -177,7 +187,10 @@ router.get('/session', (req, res) => {
 
 router.get('/check', (req, res) => {
   const db = req.app.locals.db;
-  const existingUser = db.prepare('SELECT COUNT(*) as count FROM users').get();
+  if (!db) {
+    return res.status(503).json({ error: 'Database not configured for this deployment.' });
+  }
+  const existingUser = db.prepare('SELECT COUNT(*) as count FROM users').get() || { count: 0 };
   res.json({ needsRegistration: existingUser.count === 0 });
 });
 
