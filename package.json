@@ -2,7 +2,7 @@
   "name": "mailcryvia",
   "private": true,
   "scripts": {
-    "build": "npm --prefix client run build"
+    "build": "npm --prefix client run build && node scripts/copy-client-dist.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
