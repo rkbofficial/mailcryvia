@@ -19,6 +19,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.use('/api/auth', require('../server/routes/auth'));
+app.use('/api/plans', require('../server/routes/plans'));
+app.use('/api/track', require('../server/routes/tracking'));
+app.use('/unsubscribe', require('../server/routes/unsubscribe'));
+
 app.use(async (req, res, next) => {
   if (process.env.VERCEL && !process.env.DATABASE_URL) {
     return res.status(503).json({
