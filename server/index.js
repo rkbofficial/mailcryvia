@@ -39,6 +39,10 @@ function getAllowedOrigins() {
 }
 
 function validateDeploymentConfig() {
+  if (isServerlessRuntime && !process.env.DATABASE_URL) {
+    return;
+  }
+
   validateRequiredSecrets();
 
   if (process.env.CORS_ORIGIN?.split(',').some((origin) => origin.trim() === '*')) {
@@ -299,7 +303,8 @@ if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
 
 if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
   const vercelHandler = serverless(app);
-  module.exports = async function serverlessEntry(event, context) {
+  module.exports = app;
+  module.exports.handler = async function serverlessEntry(event, context) {
     await initializeApp();
     return vercelHandler(event, context);
   };
